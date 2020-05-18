@@ -1,0 +1,239 @@
+---
+title: "Ordinal Logistic Regression"
+author: "Md Asad Uz Jaman"
+date: "5/18/2020"
+output: html_document
+---
+
+## Ordinal Logistic Regression
+
+Logistic Regression is a statistical analysis tool which helps to predict response variable (dependent variables) in terms of explanatory variables(independent variables). In Linear Regression or Multiple Regression, the expected value of response variable is predicted based on the values taken by the explanatory variables.
+
+In logistic regression, Odds (Probability) of the response variable takes a certain value that is depending on the combination of values taken by the explanatory variables. Moreover, Logistic regression is implemented when the response variable is categorical or count data. The regression model is used to analyze a dichotomous (‘yes’ or ‘no’) outcome such as the passengers of Titanic survived or died as a function of sex or age. In this case, the data of response variable fall into ‘yes’ and ‘no’ categories. Using the regression, statisticians try to find out the probability or odd of a response variable
+
+#### Data
+The data set link (https://stats.idre.ucla.edu/stat/data/ologit.dta) is containting the pieces of information about 400 college juniors who are planning to apply for graduate schools or not. From In the dataset, we will use ‘apply’ as response (dependent) varible and the varibale has 3 levels - ‘very likely’ (3), ‘somewhat likely’ (2), and ‘unlikely’ (1).
+
+We also have 3 predictor or explanatory variables which are ‘pared’, ‘public’ and ‘gpa’. The ‘Pared’ is representing _Parent Education_ whether parents are educated (1 if educated) or not (0 if uneducated). ‘public’ variable stands for whether students have completed undergraduation from public institution (1 if so) or not (0 if not from public ). The ‘gpa’ is containing the score for undergrade students.
+
+```{r}
+# Importing libraries (If you don't have the following libraries, install them from 'Tools'>'Install Packages')
+library(foreign)
+library(ggplot2)
+library(MASS)
+library(Hmisc)
+library(reshape2)
+```
+
+```{r}
+# Importing Data
+data <- read.dta("ologit.dta")
+head(data)
+```
+
+```{r}
+# Data distribution of 'apply', 'pared' and 'public'
+lapply(data[, c("apply", "pared", "public")], table)
+```
+
+We can observe there are 220 observations under ‘unlikely’, 140 observations under ‘somewhat likely’ and 40 observations under ‘somewhat likely’. moreover, 337 parents are educated whereas 63 parents are not. Furthermore, 343 students are from public colleges among 400 students.
+
+```{r}
+# Cross tabulation for flattening the table
+ftable(xtabs(~ public + apply + pared, data = data))
+```
+
+```{r}
+# Summary of GPA data
+summary(data$gpa)
+```
+
+```{r}
+# Standard Deviation of GPA
+sd(data$gpa)
+```
+
+We can visualize all data by using box plots. The data distribution of every level of ‘apply’ is presented in terms of ‘gpa’, ‘pared’ (1 if educated & 0 if uneducated) and ‘public’ (1 if public institution & 0 if private institution).
+
+```{r}
+# Data Visualization
+ggplot(data, aes(x = apply, y = gpa)) +
+geom_boxplot(size = .75) +
+geom_jitter(alpha = .35) +
+facet_grid(pared ~ public, margins = TRUE) +
+theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+```
+
+In the mentioned box plots, we try to show the the distribution of data as per classification of each variable. For instance, we try to present data as 3x3 matrices with ‘gpa’ for every level of ‘apply’. ‘pared’ (parent education) and ‘public’ (status of previous institutions).
+
+#### Implementation of Ordinal Logitic Regression or Proportional Odds Logistic Regression
+
+‘Ordinal Logitic Regression (OLR)’ is known as ‘Proportional Odds Logistic Regression’ which derives ‘polr’ function in R. To find out standard errors, we use ‘Hessian’ logic as true (Hess=TRUE).
+
+```{r}
+# Ordinal Logitic Regression Model
+OLR <- polr(apply ~ pared + public + gpa, data = data, Hess=TRUE)
+
+# Summary of the Ordinal Logitic Regression Model
+summary(OLR)
+```
+
+From above table, we see regression output of values (coefficients), standard errors (SE) and t values of apply depending on pared, public and gpa. There are 2 intercepts (cutpoints) of ‘unlikely|somewhat likely’ and ‘somewhat likely|very likely’. These 2 intercepts indicate the ‘apply’ varible is cut to show the three levels that we mention in our dataset as ‘unlikely’, ‘somewhat likely’ and ’very likely.
+
+#### Calculation of P Values
+
+There is no automatic system to calculate p values. To analyze our model easily, we can calculate p values by
+comparing the t-value against the standard normal distribution, like a z test.
+
+```{r}
+# Table of soefficient, standard Errors and t values
+ctable <- coef(summary(OLR))
+
+# Calculation of p values
+p_value <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
+
+# Table of coefficient, standard Errors, t values and p values
+(ctable <- cbind(ctable, "p values" = p_value))
+```
+
+We can observe from p values that all variables and intercepts are significant considering 2.5% level of significance. If we found insignificant value (p value > 2.5% significance level), we would eradicate that variables or intercepts.
+
+#### Calculation of confidence intervals
+
+We can also calculate confidence intervals for the parameter estimates.
+
+```{r}
+# Default method of profiled CIs
+(ci <- confint(OLR))
+```
+
+```{r}
+# Normality assumption of CIs
+confint.default(OLR)
+```
+
+The outputs are given in ordered log odds and the confidence interval of ‘public’ variable contains 0. We can explain on log odds scale for ‘pared’ and ‘gpa’ from aforementioned coefficients’ table. Now, it can be said if a unit in ‘pared’ is increased (0 to 1), the expected value of ‘apply’ variable will be increased by 1.04769010 on log odds scale (ceteris paribus). Likewise, if one unit in ‘gpa’ is increased (0 to 1), the expected value of ‘apply’ variable will be increased by 0.61594057 on log odds scale (ceteris paribus). To explain the result we need to keep in mind that we exponentiate the estimates and confidence intervals.
+
+#### calculation of odds ratios
+```{r}
+# Exponential calculation of odds ratios
+exp(coef(OLR))
+
+```
+
+```{r}
+# Table of Ordinal Logistic Regression and Confidence Intervals
+exp(cbind(OR = coef(OLR), ci))
+```
+We can summarize that one unit (from 0 to 1 where 0 = uneducated & 1 = educated) increase in ‘pared’ (parents’ education), the odds of 'very likely' or 'somewhat likely' applying are 2.85 times greater than the ‘unlikely’ tendency of application (ceteris paribus). Similarly, the odds of ‘very likely’ application tendency are 2.85 times greater than the combined tendency of ‘somewhat likely’ or ‘unlikely’ (ceteris paribus).
+
+One unit increase in ‘gpa’, the odds of “very likely” or “somewhat likely” applying are 1.85 times greater than the ‘unlikely’ tendency of application (ceteris paribus). Besides, the odds of ‘very likely’ application tendency are 1.85 times greater than the combined tendency of ‘somewhat likely’ or ‘unlikely’ (ceteris paribus) if ‘gpa’ is increased 1 unit.
+
+#### Assumption of proportional odds
+
+One of the most important assumptions of Ordinal Logistic Regression is the odds ratio assesssing the effect of an exposure variable for any of these comparisons will be the same regardless of where the cutpoint is made. In other words, the relationship among all groups (matrices) is indifferent and Indistinguishable (Kleinbaum and Klein, 2002, p.305). Based on the assumption, we will examine ous model for appropriateness. To test the appropriateness, We need to find that parallel slopes (coefficients) are indifferent.
+
+Shortly, we will build a table to test the appropriateness. We use each of the predictors variables to predict the outcome variable (Y). The outcome variable (‘apply’) has 3 outcome levels that are defined by (y >= 1), (y >= 2) and (y >= 3). After comparing, if the difference between predictor’s levels is same, then we can infer the proportional odds assumption holds. To define the model differently, we can take ‘public’ variable as predictor variable. if the differnce between logits for public = 0 and public = 1 is same, the outcome difference between (y >= 2) and (y >= 3) should be same.
+
+We write the following codes using 2 commands where 1st command takes ‘sf’ as function. The 1st command also tells the estimated value of y that should be in the table. The 2nd command lists all predictor variables as per their respective levels under the three columns or levels of outcome variable (y). We will observe that ‘gpa’ is seperated in 4 segments.
+
+```{r}
+# Table to check the appropriateness of proportional odds assumption
+sf <- function(y) {
+c('Y>=1' = qlogis(mean(y >= 1)),
+'Y>=2' = qlogis(mean(y >= 2)),
+'Y>=3' = qlogis(mean(y >= 3)))}
+(s <- with(data, summary(as.numeric(apply) ~ pared + public + gpa, fun=sf)))
+```
+
+__Note__: The table shows the predicted values of ‘pared’ and ‘public’ under ‘Yes’ and ‘No’ where ‘Yes’ stands for 1 and 'No' stands for 0. The table shows the predicted values (linear) of the outcome variable in terms of linear regression analysis on predictor variables. An important thing to notice that for time being we will keep aside the proportional odds assumption or the equal parallel slopes assumption. Later on, we will prove the assumtion by using couples of binary logistic regressions. We will use different cutpoints on outcome varibale (‘apply’) to varify the equality of coefficients.
+
+We need to transform the ordinal outcome variable to binary outcome variable. In the following code, we will assume the value outcome variable (binary variable) as 0 when ordinal value is less than two and 1 when the ordinal value is more than or equal to two. We can do that simply by using [as.numeric(apply) >= 2]. The code estimates the impact of ‘pared’ predictor variable on selecting ‘unlikely’ applying over ‘very likely’ or ‘somewhat likely’.
+
+```{r}
+glm(I(as.numeric(apply) >= 2) ~ pared, family="binomial", data = data)
+```
+
+If we look at the intercept (-0.3783), we can crosscheck with predicted value for ‘pared’ under the column of Y>=2 in ‘No’ row. It is similar to that predicted value (-0.37833644). The value below (0.76546784) [under the column of Y>=2 in ‘Yes’ row] is equal to the following equation.
+
+Intercept+coefficient = -0.3783 + 1.1438 = 0.7655
+
+We will convert the value of outcome variable (binary variable) as 0 when ordinal value is less than three and 1 when the ordinal value is more than or equal to three. We can do that simply by using [as.numeric(apply) >= 3]. The code estimates the impact of ‘pared’ predictor variable on selecting ‘unlikely’ or ‘very likely’ applying over
+‘somewhat likely’.
+
+```{r}
+glm(I(as.numeric(apply) >= 3) ~ pared, family="binomial", data = data)
+```
+
+If we look at the intercept (-2.441), we can crosscheck with predicted value for ‘pared’ under the column of Y>=3 in ‘No’ row. It is similar to that predicted value (-0.37833644) of ‘pared’. The value below [under the column of Y>=3 in ‘Yes’ row = -1.347074] is equal to the following equation. predicted value = Intercept+coefficient = -2.441 + 1.094 = -1.347
+
+For ‘pared’ equal to ‘Yes’, the difference beween the predicted values of [apply >= 2] and [apply >= 3] is about 2. [0.76546784-(-1.347074) = 2.112542]. For ‘pared’ equal to ‘No’, the difference beween the predicted values of [apply >= 2] and [apply >= 3] is about 2. [-0.37833644-(-2.440735) = 2.062399].
+
+In both cases. the findings suggest the proportional odds assumption (equal parallel slopes assumptions) holds for
+‘pared’ predictor varibale.
+
+The confidence interval of ‘public’ predictor variable contains 0, it may not support proportional odds assumption. However we will test the differnce of ‘public’. For ‘public’ equal to ‘Yes’, the difference beween the predicted values of [apply >= 2] and [apply >= 3] is about 1.37. [-0.17589067-(-1.547563) = 1.371672]. For ‘public’ equal to ‘No’, the difference beween the predicted values
+of [apply >= 2] and [apply >= 3] is about 2.14. [-0.20479441-(-2.345006) = 2.140212]. In both cases. the findings suggest the proportional odds assumption (equal parallel slopes assumptions) does not hold for ‘public’ predictor varibale. Attending in public or non-public institutions may not affect the decision to apply.
+
+#### Differences of coefficients
+
+The plot command below tells R that the object we wish to plot is s. The command which=1:3 is a list of values indicating levels of y should be included in the plot. If your dependent variable had more than three levels you would need to change the 3 to the number of categories (e.g., 4 for a four category variable, even if it is numbered 0, 1, 2, 3). The command pch=1:3 selects the markers to use, and is optional, as are xlab=‘logit’ which labels the x-axis, and main=‘’ which sets the main label for the graph to blank.
+
+The ‘s[, 4]’ represents the value of 4th column after deducting the value of 3rd column. Likewise, s[, 3] stands for the value of 3rd column after deducting the value of 3rd column. Now with plot command, we want to plot the value of ‘s’ where X axis demonstrates the coefficient difference from 0 [xlab=‘logit’] and Y axis represents the predictor variables. ‘which=1:3’ is listing values of dependent variable (y). The command ‘pch=1:3’ selects the markers to depict and col=“blue” selects color of the markers.
+
+```{r}
+s[, 4] <- s[, 4] - s[, 3]
+s[, 3] <- s[, 3] - s[, 3]
+plot(s, which=1:3, pch=1:3, xlab='logit', main=' ', xlim=range(s[,3:4]), col="blue")
+```
+
+We can observe that the coefficient differences for ‘Yes’ and ‘No’ in ‘Pared’ are almost similar. When differences are similar we can assume that the proportional odds assumption holds. The coefficient differences for ‘Yes’ and ‘No’ in ‘Public’ are not similar. Therefore, we can say the proportional odds assumption does not hold.
+
+#### Calculation of Predicted Probabilities
+
+After examining the assumption, we can go for predicted probabilities by creating a new dataset. The concept is easy to calculate and explain. We can find predicted probabilities of each predictor variables in terms of outcome variables. For instance, we can find probabilities of ‘gpa’ for each level of ‘pared’ and ‘public’.
+
+```{r}
+# New dataset for the calculation of predicted probabilities
+newdata <- data.frame(
+pared = rep(0:1, 200),
+public = rep(0:1, each = 200),
+gpa = rep(seq(from = 1.9, to = 4, length.out = 100), 4))
+newdata <- cbind(newdata, predict(OLR, newdata, type = "probs"))
+str(newdata)
+```
+
+```{r}
+# New dataset for finding out levels' probabilities
+newdata1 <- melt(newdata, id.vars = c("pared", "public", "gpa"),
+variable.name = "Level", value.name="Probability")
+str(newdata1)
+```
+
+```{r}
+ggplot(newdata1, aes(x = gpa, y = Probability, colour = Level)) +
+geom_line() + facet_grid(pared ~ public, labeller="label_both")
+```
+The predicted probabilities of all 3 levels of output variable [‘unlikely’, ‘somewhat likely’ and ‘very likely’] are same in terms of all predictor variables.
+
+
+### Reference
+
+__Bibliographic references__:
+Kleinbaum, D. and Klein, M. (2002). Logistic regression. 2nd ed. New York, N.Y.: Springer, pp.301-325.
+
+Lemeshow, S. and Hosmer, D. (2001). Applied Logistic Regression. 2nd ed. New York: Wiley, pp.288-307.
+
+__Dataset link__:
+https://stats.idre.ucla.edu/stat/data/ologit.dta 
+
+__Website Link__:
+
+stats.idre.ucla.edu (2018). Ordered Logistic Regression | Stata Data Analysis Examples. [online]
+Stats.idre.ucla.edu. Available at: https://stats.idre.ucla.edu/stata/dae/ordered-logistic-regression/ [Accessed 4 Dec. 2019].
+
+__YouTube Link__:
+
+Quant Education (2014). 3 Ordinal Logistic Regression Example. [video] Available at:
+https://www.youtube.com/watch?v=z5Cvie9uqMM [Accessed 5 Dec. 2019].
+
